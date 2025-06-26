@@ -327,3 +327,7 @@ def save_to_excel(survey):
     ])
 
     workbook.save(excel_file)
+
+@app.get("/healthz")
+def health_check():
+    return {"status": "ok"}
