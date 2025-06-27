@@ -14,6 +14,21 @@ from enum import Enum
 import openpyxl
 from pathlib import Path
 
+# ✅ Create FastAPI app (move to top)
+app = FastAPI(
+    title="SurveyPro API",
+    description="Professional Survey Application Backend",
+    version="1.0.0"
+)
+
+# ✅ Configure CORS correctly
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all domains for now
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
@@ -88,25 +103,9 @@ class SurveyResponse(BaseModel):
             datetime: lambda v: v.isoformat()
         }
 
-# Create FastAPI app
-app = FastAPI(
-    title="SurveyPro API",
-    description="Professional Survey Application Backend",
-    version="1.0.0"
-)
-
 # Create API router
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
-
-# Configure CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Configure logging
 logging.basicConfig(
@@ -115,19 +114,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 # Dependency to get database
 async def get_database() -> AsyncIOMotorDatabase:
     return db
 
-
 # Health check endpoint
+@app.get("/healthz")
+def health_check():
+    return {"status": "ok"}
+
+# Root endpoint
 @api_router.get("/")
 async def root():
     return {"message": "Hello World", "status": "healthy", "timestamp": datetime.utcnow()}
 
-
-# Survey endpoints
+# Survey submission endpoint
 @api_router.post("/survey", response_model=Dict[str, Any])
 async def submit_survey(
     survey: SurveySubmission,
@@ -178,7 +179,7 @@ async def submit_survey(
             detail="Failed to submit survey. Please try again."
         )
 
-
+# Get all surveys
 @api_router.get("/surveys", response_model=List[SurveyResponse])
 async def get_surveys(
     skip: int = 0,
@@ -197,7 +198,7 @@ async def get_surveys(
             detail="Failed to fetch surveys"
         )
 
-
+# Get survey statistics
 @api_router.get("/surveys/stats")
 async def get_survey_stats(
     database: AsyncIOMotorDatabase = Depends(get_database)
@@ -273,10 +274,8 @@ async def get_survey_stats(
             detail="Failed to fetch survey statistics"
         )
 
-
 # Include the router in the main app
 app.include_router(api_router)
-
 
 # Startup event to create indexes
 @app.on_event("startup")
@@ -290,14 +289,12 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Error creating database indexes: {e}")
 
-
 # Shutdown event
 @app.on_event("shutdown")
 async def shutdown_event():
     """Close database connection on shutdown."""
     client.close()
     logger.info("Database connection closed")
-
 
 def save_to_excel(survey):
     excel_file = Path("survey_responses.xlsx")
@@ -328,10 +325,7 @@ def save_to_excel(survey):
 
     workbook.save(excel_file)
 
-@app.get("/healthz")
-def health_check():
-    return {"status": "ok"}
-
+# ✅ Dynamic port for Render
 if __name__ == "__main__":
     import os
     import uvicorn
